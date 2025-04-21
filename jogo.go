@@ -3,7 +3,10 @@ package main
 
 import (
 	"bufio"
+	"math/rand"
 	"os"
+	"sync"
+	"time"
 )
 
 // Elemento representa qualquer objeto do mapa (parede, personagem, vegetação, etc)
@@ -20,6 +23,7 @@ type Jogo struct {
 	PosX, PosY      int          // posição atual do personagem
 	UltimoVisitado  Elemento     // elemento que estava na posição do personagem antes de mover
 	StatusMsg       string       // mensagem para a barra de status
+	sync.Mutex                   // adiciona o mutex para sincronização
 }
 
 // Elementos visuais do jogo
@@ -29,6 +33,9 @@ var (
 	Parede     = Elemento{'▤', CorParede, CorFundoParede, true}
 	Vegetacao  = Elemento{'♣', CorVerde, CorPadrao, false}
 	Vazio      = Elemento{' ', CorPadrao, CorPadrao, false}
+	Portal 	   = Elemento{'○', CorVerde, CorPadrao, false}
+	Armadilha = Elemento{'▲', CorVermelho, CorPadrao, true}
+
 )
 
 // Cria e retorna uma nova instância do jogo
@@ -37,6 +44,9 @@ func jogoNovo() Jogo {
 	// pois o jogo começa com o personagem em uma posição vazia
 	return Jogo{UltimoVisitado: Vazio}
 }
+
+
+
 
 // Lê um arquivo texto linha por linha e constrói o mapa do jogo
 func jogoCarregarMapa(nome string, jogo *Jogo) error {
@@ -73,6 +83,140 @@ func jogoCarregarMapa(nome string, jogo *Jogo) error {
 	}
 	return nil
 }
+
+func iniciarSentinela(jogo *Jogo, xInicial, y, xFinal int) {
+	x := xInicial
+	direcao := 1
+
+	for {
+		jogo.Mutex.Lock()
+
+		// Verifica se encostou no personagem
+		if jogo.PosX == x && jogo.PosY == y {
+			jogo.StatusMsg = "⚠️  O inimigo patrulheiro te pegou! Cuidado!"
+		}
+
+		// Remove inimigo da posição anterior
+		if jogo.Mapa[y][x].simbolo == Inimigo.simbolo {
+			jogo.Mapa[y][x] = Vazio
+		}
+
+		// Calcula nova posição
+		nx := x + direcao
+		if nx < xInicial || nx > xFinal || jogo.Mapa[y][nx].tangivel {
+			direcao *= -1
+			nx = x + direcao
+		}
+
+		// Coloca inimigo na nova posição
+		if jogo.Mapa[y][nx].simbolo == Vazio.simbolo {
+			jogo.Mapa[y][nx] = Inimigo
+		}
+
+		x = nx
+		jogo.Mutex.Unlock()
+
+		interfaceDesenharJogo(jogo)
+		time.Sleep(400 * time.Millisecond)
+	}
+}
+
+func iniciarArmadilha(jogo *Jogo, x, y int, canalDesativar <-chan bool) {
+	ativa := false
+
+	ticker := time.NewTicker(3 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			ativa = !ativa
+			jogo.Mutex.Lock()
+			if ativa {
+				jogo.Mapa[y][x] = Armadilha
+			} else {
+				jogo.Mapa[y][x] = Vazio
+			}
+			jogo.Mutex.Unlock()
+			interfaceDesenharJogo(jogo)
+
+		case <-canalDesativar:
+			jogo.Mutex.Lock()
+			jogo.Mapa[y][x] = Vazio
+			jogo.StatusMsg = "🔕 Armadilha foi desativada!"
+			jogo.Mutex.Unlock()
+			interfaceDesenharJogo(jogo)
+			return
+		}
+
+		// Verifica se jogador pisou
+		jogo.Mutex.Lock()
+		if ativa && jogo.PosX == x && jogo.PosY == y {
+			jogo.StatusMsg = "💥 Você pisou numa armadilha!"
+		}
+		jogo.Mutex.Unlock()
+	}
+}
+
+
+
+
+func encontrarPosicaoLivre(jogo *Jogo) (int, int) {
+	for {
+		x := rand.Intn(len(jogo.Mapa[0]))
+		y := rand.Intn(len(jogo.Mapa))
+		if !jogo.Mapa[y][x].tangivel && jogo.Mapa[y][x].simbolo == Vazio.simbolo {
+			return x, y
+		}
+	}
+}
+
+
+func iniciarPortal(jogo *Jogo) {
+	for {
+		x, y := encontrarPosicaoLivre(jogo)
+
+		jogo.Mutex.Lock()
+		jogo.Mapa[y][x] = Portal
+		jogo.Mutex.Unlock()
+
+		interfaceDesenharJogo(jogo)
+
+		// Canal de timeout com 5 segundos
+		timeout := time.After(5 * time.Second)
+		tick := time.Tick(300 * time.Millisecond)
+
+	loop:
+		for {
+			select {
+			case <-timeout:
+				jogo.Mutex.Lock()
+				// Remove se ainda for o portal
+				if jogo.Mapa[y][x].simbolo == Portal.simbolo {
+					jogo.Mapa[y][x] = Vazio
+					jogo.StatusMsg = "⏱️ O portal desapareceu!"
+				}
+				jogo.Mutex.Unlock()
+				interfaceDesenharJogo(jogo)
+				break loop
+
+			case <-tick:
+				jogo.Mutex.Lock()
+				if jogo.PosX == x && jogo.PosY == y {
+					jogo.Mapa[y][x] = Vazio
+					jogo.StatusMsg = "🚪 Você entrou no portal a tempo!"
+					jogo.Mutex.Unlock()
+					interfaceDesenharJogo(jogo)
+					break loop
+				}
+				jogo.Mutex.Unlock()
+			}
+		}
+
+		time.Sleep(3 * time.Second) // tempo antes do próximo portal
+	}
+}
+
 
 // Verifica se o personagem pode se mover para a posição (x, y)
 func jogoPodeMoverPara(jogo *Jogo, x, y int) bool {
