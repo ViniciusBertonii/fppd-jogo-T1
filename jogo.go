@@ -1,5 +1,5 @@
 // jogo.go - Funções para manipular os elementos do jogo, como carregar o mapa e mover o personagem
-package main
+package main //novas funcionalidades
 
 import (
 	"bufio"

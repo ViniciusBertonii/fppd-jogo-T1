@@ -1,5 +1,5 @@
 // main.go - Loop principal do jogo
-package main
+package main //novas funcionalidades
 
 import (
 	"os"
