@@ -3,7 +3,7 @@
 // A biblioteca termbox-go é uma biblioteca de interface de terminal que permite desenhar
 // elementos na tela, capturar eventos do teclado e gerenciar a aparência do terminal.
 
-package main //teste
+package main
 
 import (
 	"github.com/nsf/termbox-go"
