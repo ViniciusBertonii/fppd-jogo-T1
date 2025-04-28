@@ -3,23 +3,35 @@ package main
 
 import "fmt"
 
-// Atualiza a posição do personagem com base na tecla pressionada (WASD)
 func personagemMover(tecla rune, jogo *Jogo) {
 	dx, dy := 0, 0
 	switch tecla {
-	case 'w': dy = -1 // Move para cima
-	case 'a': dx = -1 // Move para a esquerda
-	case 's': dy = 1  // Move para baixo
-	case 'd': dx = 1  // Move para a direita
+	case 'w':
+		dy = -1
+	case 'a':
+		dx = -1
+	case 's':
+		dy = 1
+	case 'd':
+		dx = 1
 	}
 
 	nx, ny := jogo.PosX+dx, jogo.PosY+dy
-	// Verifica se o movimento é permitido e realiza a movimentação
+
 	if jogoPodeMoverPara(jogo, nx, ny) {
+		elementoDestino := jogo.Mapa[ny][nx] // <<< pega o elemento ANTES de mover!
+
 		jogoMoverElemento(jogo, jogo.PosX, jogo.PosY, dx, dy)
 		jogo.PosX, jogo.PosY = nx, ny
+
+		// Agora sim, checar se caiu na armadilha
+		if elementoDestino.simbolo == Armadilha.simbolo {
+			jogo.StatusMsg = "💥 Você caiu numa armadilha!"
+			jogo.PosX, jogo.PosY = jogo.StartX, jogo.StartY
+		}
 	}
 }
+
 
 // Define o que ocorre quando o jogador pressiona a tecla de interação
 // Neste exemplo, apenas exibe uma mensagem de status

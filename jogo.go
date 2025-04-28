@@ -21,6 +21,7 @@ type Elemento struct {
 type Jogo struct {
 	Mapa            [][]Elemento // grade 2D representando o mapa
 	PosX, PosY      int          // posição atual do personagem
+	StartX, StartY int // posição inicial salva
 	UltimoVisitado  Elemento     // elemento que estava na posição do personagem antes de mover
 	StatusMsg       string       // mensagem para a barra de status
 	sync.Mutex                   // adiciona o mutex para sincronização
@@ -71,7 +72,9 @@ func jogoCarregarMapa(nome string, jogo *Jogo) error {
 			case Vegetacao.simbolo:
 				e = Vegetacao
 			case Personagem.simbolo:
-				jogo.PosX, jogo.PosY = x, y // registra a posição inicial do personagem
+				jogo.PosX, jogo.PosY = x, y
+				jogo.StartX, jogo.StartY = x, y // <<< NOVO: salva o ponto inicial também
+			
 			}
 			linhaElems = append(linhaElems, e)
 		}
@@ -294,26 +297,24 @@ func movimentarInimigoVertical(jogo *Jogo, xInicial, yInicial int) {
 
 
 
-// Verifica se o personagem pode se mover para a posição (x, y)
 func jogoPodeMoverPara(jogo *Jogo, x, y int) bool {
-	// Verifica se a coordenada Y está dentro dos limites verticais do mapa
 	if y < 0 || y >= len(jogo.Mapa) {
 		return false
 	}
-
-	// Verifica se a coordenada X está dentro dos limites horizontais do mapa
 	if x < 0 || x >= len(jogo.Mapa[y]) {
 		return false
 	}
-
-	// Verifica se o elemento de destino é tangível (bloqueia passagem)
+	// Se for armadilha, pode pisar, mesmo que tangível
+	if jogo.Mapa[y][x].simbolo == Armadilha.simbolo {
+		return true
+	}
+	// Senão, verifica normalmente
 	if jogo.Mapa[y][x].tangivel {
 		return false
 	}
-
-	// Pode mover para a posição
 	return true
 }
+
 
 // Move um elemento para a nova posição
 func jogoMoverElemento(jogo *Jogo, x, y, dx, dy int) {
