@@ -84,42 +84,6 @@ func jogoCarregarMapa(nome string, jogo *Jogo) error {
 	return nil
 }
 
-func iniciarSentinela(jogo *Jogo, xInicial, y, xFinal int) {
-	x := xInicial
-	direcao := 1
-
-	for {
-		jogo.Mutex.Lock()
-
-		// Verifica se encostou no personagem
-		if jogo.PosX == x && jogo.PosY == y {
-			jogo.StatusMsg = "⚠️  O inimigo patrulheiro te pegou! Cuidado!"
-		}
-
-		// Remove inimigo da posição anterior
-		if jogo.Mapa[y][x].simbolo == Inimigo.simbolo {
-			jogo.Mapa[y][x] = Vazio
-		}
-
-		// Calcula nova posição
-		nx := x + direcao
-		if nx < xInicial || nx > xFinal || jogo.Mapa[y][nx].tangivel {
-			direcao *= -1
-			nx = x + direcao
-		}
-
-		// Coloca inimigo na nova posição
-		if jogo.Mapa[y][nx].simbolo == Vazio.simbolo {
-			jogo.Mapa[y][nx] = Inimigo
-		}
-
-		x = nx
-		jogo.Mutex.Unlock()
-
-		interfaceDesenharJogo(jogo)
-		time.Sleep(400 * time.Millisecond)
-	}
-}
 
 func iniciarArmadilha(jogo *Jogo, x, y int, canalDesativar <-chan bool) {
 	ativa := false
@@ -157,6 +121,63 @@ func iniciarArmadilha(jogo *Jogo, x, y int, canalDesativar <-chan bool) {
 		jogo.Mutex.Unlock()
 	}
 }
+
+func adicionarArmadilhasAleatorias(jogo *Jogo, quantidade int) {
+	for i := 0; i < quantidade; i++ {
+		x, y := encontrarPosicaoLivre(jogo)
+
+		go iniciarArmadilhaAleatoria(jogo, x, y)
+	}
+}
+
+func iniciarArmadilhaAleatoria(jogo *Jogo, x, y int) {
+	ativa := false
+	ticker := time.NewTicker(3 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			ativa = !ativa
+
+			jogo.Mutex.Lock()
+			if ativa {
+				jogo.Mapa[y][x] = Armadilha
+			} else {
+				jogo.Mapa[y][x] = Vazio
+			}
+			jogo.Mutex.Unlock()
+
+			interfaceDesenharJogo(jogo)
+		default:
+			time.Sleep(100 * time.Millisecond) // para evitar loop intenso
+		}
+
+		// Verifica se jogador caiu na armadilha ativa
+		jogo.Mutex.Lock()
+		if ativa && jogo.PosX == x && jogo.PosY == y {
+			// Volta o jogador para o ponto inicial
+			jogo.StatusMsg = "💥 Você caiu numa armadilha! Voltando para o início!"
+			jogo.PosX, jogo.PosY = encontrarPontoInicial(jogo)
+		}
+		jogo.Mutex.Unlock()
+	}
+}
+
+func encontrarPontoInicial(jogo *Jogo) (int, int) {
+	for y, linha := range jogo.Mapa {
+		for x, elem := range linha {
+			if elem.simbolo == Personagem.simbolo {
+				return x, y
+			}
+		}
+	}
+	// fallback caso não encontre (não deveria acontecer)
+	return 1, 1
+}
+
+
+
 
 
 
@@ -216,6 +237,61 @@ func iniciarPortal(jogo *Jogo) {
 		time.Sleep(3 * time.Second) // tempo antes do próximo portal
 	}
 }
+
+func movimentarInimigoVertical(jogo *Jogo, xInicial, yInicial int) {
+	x, y := xInicial, yInicial
+	direcao := 1
+
+	for {
+		time.Sleep(500 * time.Millisecond)
+
+		jogo.Mutex.Lock()
+
+		// Verifica se o inimigo ainda existe
+		if jogo.Mapa[y][x].simbolo != Inimigo.simbolo {
+			jogo.Mutex.Unlock()
+			return
+		}
+
+		ny := y + direcao
+
+		// Verifica limites ou parede
+		if ny < 0 || ny >= len(jogo.Mapa) || jogo.Mapa[ny][x].tangivel {
+			direcao *= -1
+			jogo.Mutex.Unlock()
+			continue
+		}
+
+		// Verifica se o jogador está na próxima posição
+		if jogo.PosX == x && jogo.PosY == ny {
+			// Jogador está no caminho → inverte a direção
+			direcao *= -1
+			jogo.StatusMsg = "⚡ O inimigo tentou te atingir, mas mudou de direção!"
+			jogo.Mutex.Unlock()
+			continue
+		}
+
+		// Verifica se o destino é Vazio ou Vegetação
+		destino := jogo.Mapa[ny][x].simbolo
+		if destino == Vazio.simbolo || destino == Vegetacao.simbolo {
+			// Apaga a posição antiga
+			jogo.Mapa[y][x] = Vazio
+			// Move para a nova posição
+			jogo.Mapa[ny][x] = Inimigo
+			y = ny
+		} else {
+			// Se não puder andar, inverte
+			direcao *= -1
+		}
+
+		jogo.Mutex.Unlock()
+
+		interfaceDesenharJogo(jogo)
+	}
+}
+
+
+
 
 
 // Verifica se o personagem pode se mover para a posição (x, y)

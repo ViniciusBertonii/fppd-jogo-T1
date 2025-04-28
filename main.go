@@ -43,10 +43,24 @@ func main() {
 	
 
 
-	go iniciarSentinela(&jogo, 10, 5, 20)      // patrulha de x=10 até x=20 na linha 5
+	//go iniciarSentinela(&jogo, 10, 5, 20)      // patrulha de x=10 até x=20 na linha 5
 	go iniciarPortal(&jogo)                    // surge e some em posições aleatórias
 	canalArmadilha := make(chan bool)
 	go iniciarArmadilha(&jogo, 25, 15, canalArmadilha)
+	
+
+	for y, linha := range jogo.Mapa {
+		for x, elem := range linha {
+			if elem.simbolo == Inimigo.simbolo {
+				go movimentarInimigoVertical(&jogo, x, y)
+			}
+		}
+	}
+
+	adicionarArmadilhasAleatorias(&jogo, 3) // por exemplo, 3 armadilhas aleatórias
+
+	
+	
 
 
 
