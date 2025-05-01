@@ -41,6 +41,30 @@ func personagemInteragir(jogo *Jogo) {
 	jogo.StatusMsg = fmt.Sprintf("Interagindo em (%d, %d)", jogo.PosX, jogo.PosY)
 }
 
+func verificarDesativarArmadilha(jogo *Jogo) {
+	direcoes := []struct{ dx, dy int }{
+		{0, 1}, {1, 0}, {0, -1}, {-1, 0}, // cima, direita, baixo, esquerda
+	}
+
+	for _, dir := range direcoes {
+		nx := jogo.PosX + dir.dx
+		ny := jogo.PosY + dir.dy
+
+		if ny >= 0 && ny < len(jogo.Mapa) && nx >= 0 && nx < len(jogo.Mapa[0]) {
+			if jogo.Mapa[ny][nx].simbolo == Armadilha.simbolo {
+				// Achou uma armadilha perto → desativa
+				select {
+				case canalArmadilha <- true: // envia sinal para desativar
+					jogo.StatusMsg = "🔵 Você desativou uma armadilha!"
+				default:
+					// evita travar caso o canal esteja fechado
+				}
+			}
+		}
+	}
+}
+
+
 // Processa o evento do teclado e executa a ação correspondente
 func personagemExecutarAcao(ev EventoTeclado, jogo *Jogo) bool {
 	switch ev.Tipo {
@@ -48,8 +72,9 @@ func personagemExecutarAcao(ev EventoTeclado, jogo *Jogo) bool {
 		// Retorna false para indicar que o jogo deve terminar
 		return false
 	case "interagir":
-		// Executa a ação de interação
-		personagemInteragir(jogo)
+		personagemInteragir(jogo) // interação normal
+		verificarDesativarArmadilha(jogo) // adicional: tenta desativar armadilha próxima
+	
 	case "mover":
 		// Move o personagem com base na tecla
 		personagemMover(ev.Tecla, jogo)

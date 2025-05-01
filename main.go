@@ -19,6 +19,9 @@ var (
 	CanalArmadilha     = make(chan Mensagem)
 )
 
+var canalArmadilha chan bool
+
+
 func main() {
 	// Inicializa a interface (termbox)
 	interfaceIniciar()
@@ -47,6 +50,11 @@ func main() {
 	go iniciarPortal(&jogo)                    // surge e some em posições aleatórias
 	canalArmadilha := make(chan bool)
 	go iniciarArmadilha(&jogo, 25, 15, canalArmadilha)
+
+	canalArmadilha = make(chan bool) // inicializa o canal
+
+	go iniciarArmadilha(&jogo, 30, 15, canalArmadilha) // armadilha fixa, como já estava
+
 	
 
 	for y, linha := range jogo.Mapa {
